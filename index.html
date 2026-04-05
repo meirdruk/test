@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>New Inyan</title>
+    <title>Inyan</title>
     <!-- Tailwind CSS for styling -->
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- React and Babel to run JSX in the browser -->
@@ -63,7 +63,6 @@
                             const hb = window.hebcal || window.hbcore;
                             if (!hb) throw new Error("Hebcal library failed to load");
 
-                            // 1. Get Location
                             let lat = 40.7128, lon = -74.0060, city = "New York", region = "NY";
                             try {
                                 const ipRes = await fetch('https://ipapi.co/json/');
@@ -79,22 +78,47 @@
                             const now = new Date();
                             const nowTime = now.getTime();
                             
-                            // 2. Fetch Zmanim (fetching today and tomorrow to cover the midnight to dawn gap)
                             const zmanimRes = await fetch(`https://www.hebcal.com/zmanim?cfg=json&latitude=${lat}&longitude=${lon}&tgt=1`);
                             if (!zmanimRes.ok) throw new Error("Zmanim API error");
                             const zmanimData = await zmanimRes.json();
                             const times = zmanimData.times;
 
-                            // 3. Logic for Night Detection (Sunset until Alot HaShachar)
                             const sunsetTime = new Date(times.sunset).getTime();
                             const alotTime = new Date(times.alotHaShachar).getTime();
                             
-                            // It is night if:
-                            // A) It's after today's sunset (e.g., 8:00 PM)
-                            // B) It's before today's Alot HaShachar (e.g., 3:00 AM)
+                            // isNight is true from Sunset until Alot HaShachar
                             const isNight = nowTime >= sunsetTime || nowTime < alotTime;
 
-                            // 4. Determine next Zman
+                            // CRITICAL FIX: Determine if we should tell the API "advance the day"
+                            // If it's after sunset but BEFORE midnight, gs=1 (add a day).
+                            // If it's AFTER midnight but BEFORE alot hashachar, the civil date is already "tomorrow",
+                            // so gs=0 (don't add another day).
+                            const isAfterMidnight = now.getHours() < 12 && nowTime < alotTime;
+                            const shouldAdvanceDay = isNight && !isAfterMidnight;
+
+                            const gy = now.getFullYear();
+                            const gm = now.getMonth() + 1;
+                            const gd = now.getDate();
+                            const afterSunsetParam = shouldAdvanceDay ? '&gs=1' : '&gs=0';
+                            
+                            const apiRes = await fetch(`https://www.hebcal.com/converter?cfg=json&gy=${gy}&gm=${gm}&gd=${gd}${afterSunsetParam}&g2h=1&h=1&lg=he`);
+                            const apiData = await apiRes.json();
+
+                            const hDateObj = new hb.HDate(apiData.hd, apiData.hm, apiData.hy);
+                            const dayIndex = hDateObj.getDay();
+                            
+                            const daysHeb = ["ראשון", "שני", "שלישי", "רביעי", "חמישי", "שישי", "שבת"];
+                            const dayName = daysHeb[dayIndex];
+                            const prefix = isNight ? "ליל" : "יום";
+
+                            let displayEvents = "";
+                            if (apiData.events && apiData.events.length > 0) {
+                                displayEvents = apiData.events
+                                    .map(e => removeNikud(e))
+                                    .filter(e => !/[a-zA-Z]/.test(e)) 
+                                    .join(" | ");
+                            }
+
                             let nextZmanKey = null;
                             let nextZmanTimeText = null;
                             const timeEntries = Object.entries(times)
@@ -107,31 +131,6 @@
                                     nextZmanTimeText = entry.time.toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' });
                                     break;
                                 }
-                            }
-
-                            // 5. Fetch Hebrew Date
-                            const gy = now.getFullYear();
-                            const gm = now.getMonth() + 1;
-                            const gd = now.getDate();
-                            
-                            // If it's night (even after midnight), we need the Hebrew date of "tonight"
-                            const afterSunsetParam = isNight ? '&gs=1' : '&gs=0';
-                            const apiRes = await fetch(`https://www.hebcal.com/converter?cfg=json&gy=${gy}&gm=${gm}&gd=${gd}${afterSunsetParam}&g2h=1&h=1&lg=he`);
-                            const apiData = await apiRes.json();
-
-                            const hDateObj = new hb.HDate(now);
-                            // If it's past sunset (before or after midnight), it's already the next Hebrew day
-                            const displayHDate = isNight ? hDateObj.next() : hDateObj;
-                            const daysHeb = ["ראשון", "שני", "שלישי", "רביעי", "חמישי", "שישי", "שבת"];
-                            const dayName = daysHeb[displayHDate.getDay()];
-                            const prefix = isNight ? "ליל" : "יום";
-
-                            let displayEvents = "";
-                            if (apiData.events && apiData.events.length > 0) {
-                                displayEvents = apiData.events
-                                    .map(e => removeNikud(e))
-                                    .filter(e => !/[a-zA-Z]/.test(e)) 
-                                    .join(" | ");
                             }
 
                             setDateInfo({
