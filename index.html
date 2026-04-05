@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>מחשבון תאריך עברי - בעל התניא</title>
+    <title>Test Page</title>
     <!-- Tailwind CSS for styling -->
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- React and Babel to run JSX in the browser -->
@@ -11,7 +11,7 @@
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Assistant:wght@300;400;700;800&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Assistant:wght@200;300;400;600;700&display=swap');
         body { font-family: 'Assistant', sans-serif; }
     </style>
 </head>
@@ -144,9 +144,9 @@
             }, []);
 
             return (
-                <div className={`min-h-screen flex flex-col items-center justify-center transition-all duration-1000 ${dateInfo.isNight ? 'bg-slate-950 text-slate-100' : 'bg-blue-50 text-slate-900'}`}>
+                <div className={`min-h-screen flex flex-col items-center justify-center transition-all duration-1000 ${dateInfo.isNight ? 'bg-slate-950 text-slate-200' : 'bg-blue-50 text-slate-800'}`}>
                     
-                    <div className={`p-8 rounded-[2.5rem] shadow-xl text-center max-w-lg w-full border-2 transition-all ${dateInfo.isNight ? 'bg-slate-900 border-slate-800' : 'bg-white border-white'}`}>
+                    <div className={`p-8 rounded-[2.5rem] shadow-xl text-center max-w-lg w-full border transition-all ${dateInfo.isNight ? 'bg-slate-900 border-slate-800' : 'bg-white border-blue-50'}`}>
                         
                         {loading ? (
                             <div className="animate-pulse space-y-6">
@@ -155,7 +155,7 @@
                             </div>
                         ) : (
                             <>
-                                <div className="text-xs font-bold opacity-40 select-none mb-3 tracking-widest">
+                                <div className="text-xs font-medium opacity-40 select-none mb-3 tracking-widest">
                                     בס"ד
                                 </div>
 
@@ -163,30 +163,30 @@
                                     {dateInfo.isNight ? '🌙' : '☀️'}
                                 </div>
 
-                                <h1 className="text-3xl md:text-5xl font-black mb-4 tracking-tighter leading-tight" dir="rtl">
+                                <h1 className="text-3xl md:text-5xl font-semibold mb-4 tracking-tight leading-tight" dir="rtl">
                                     {dateInfo.fullDate}
                                 </h1>
 
                                 {dateInfo.holiday && (
-                                    <div className="mt-1 mb-6 inline-block px-5 py-2 rounded-xl bg-amber-500/10 text-amber-600 dark:text-amber-400 text-lg font-bold border border-amber-500/20">
+                                    <div className="mt-1 mb-6 inline-block px-5 py-2 rounded-xl bg-amber-500/5 text-amber-600/90 dark:text-amber-400/90 text-lg font-medium border border-amber-500/10">
                                         {dateInfo.holiday}
                                     </div>
                                 )}
 
                                 {dateInfo.nextZman && (
-                                    <div className={`mt-2 p-4 rounded-[1.5rem] border-2 flex flex-col items-center justify-center transition-all ${dateInfo.isNight ? 'bg-slate-800/50 border-blue-900/30' : 'bg-blue-50/50 border-blue-100'}`}>
-                                        <span className="text-[10px] font-bold opacity-60 mb-1">הזמן הקרוב (בעל התניא):</span>
+                                    <div className={`mt-2 p-4 rounded-[1.5rem] border flex flex-col items-center justify-center transition-all ${dateInfo.isNight ? 'bg-slate-800/30 border-slate-700/50' : 'bg-blue-50/30 border-blue-100/50'}`}>
+                                        <span className="text-[10px] font-medium opacity-50 mb-1">הזמן הקרוב (בעל התניא):</span>
                                         <div className="flex items-baseline gap-2">
-                                            <span className="text-xl font-black text-blue-600 dark:text-blue-400">{dateInfo.nextZman.name}</span>
-                                            <span className="text-2xl font-light tracking-wider">{dateInfo.nextZman.time}</span>
+                                            <span className="text-xl font-semibold text-blue-600/80 dark:text-blue-400/80">{dateInfo.nextZman.name}</span>
+                                            <span className="text-2xl font-light tracking-wide">{dateInfo.nextZman.time}</span>
                                         </div>
-                                        <div className="mt-2 text-[9px] uppercase tracking-widest opacity-40 font-bold">
+                                        <div className="mt-2 text-[9px] uppercase tracking-widest opacity-40 font-medium">
                                             חישוב עבור: {dateInfo.locationName}
                                         </div>
                                     </div>
                                 )}
 
-                                <div className="mt-10 pt-6 border-t border-slate-100 dark:border-slate-800 opacity-40 text-[10px] font-bold flex flex-wrap justify-center gap-4">
+                                <div className="mt-10 pt-6 border-t border-slate-100 dark:border-slate-800 opacity-40 text-[10px] font-medium flex flex-wrap justify-center gap-4">
                                     <span>© מאיר דרוק</span>
                                 </div>
                             </>
