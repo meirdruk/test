@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>מחשבון תאריך עברי - בעל התניא</title>
+    <!-- Tailwind CSS for styling -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- React and Babel to run JSX in the browser -->
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Assistant:wght@300;400;700;800&display=swap');
+        body { font-family: 'Assistant', sans-serif; }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect } = React;
+
+        const App = () => {
+            const [dateInfo, setDateInfo] = useState({
+                fullDate: "טוען...",
+                holiday: "",
+                isNight: false,
+                nextZman: null,
+                locationName: ""
+            });
+            const [loading, setLoading] = useState(true);
+
+            const removeNikud = (text) => {
+                if (!text) return "";
+                return text.replace(/[\u0591-\u05C7]/g, "");
+            };
+
+            const zmanNamesHeb = {
+                alotHaShachar: "עלות השחר",
+                misheyakir: "משיכיר",
+                sunrise: "נץ החמה",
+                sofZmanShmaMGA: "סוף זמן קריאת שמע (מג״א)",
+                sofZmanShma: "סוף זמן קריאת שמע (גר״א)",
+                sofZmanTfilla: "סוף זמן תפילה",
+                chatzot: "חצות היום",
+                minchaGedola: "מנחה גדולה",
+                minchaKetana: "מנחה קטנה",
+                plagHaMincha: "פלג המנחה",
+                sunset: "שקיעה",
+                tzeit: "צאת הכוכבים"
+            };
+
+            useEffect(() => {
+                const script = document.createElement('script');
+                script.src = "https://cdn.jsdelivr.net/npm/@hebcal/core@latest/dist/bundle.min.js";
+                script.async = true;
+                
+                script.onload = async () => {
+                    const fetchAllData = async () => {
+                        try {
+                            const hb = window.hebcal || window.hbcore;
+                            if (!hb) return;
+
+                            let lat = 40.7128, lon = -74.0060, city = "New York", region = "NY";
+                            try {
+                                const ipRes = await fetch('https://ipapi.co/json/');
+                                const ipData = await ipRes.json();
+                                if (ipData.latitude) {
+                                    lat = ipData.latitude;
+                                    lon = ipData.longitude;
+                                    city = ipData.city;
+                                    region = ipData.region_code || ipData.region;
+                                }
+                            } catch (e) { console.warn("IP Location failed"); }
+
+                            const { HDate, Location } = hb;
+                            const location = new Location(lat, lon, false, 'UTC', 'UserLoc');
+                            const now = new Date();
+                            
+                            const zmanimRes = await fetch(`https://www.hebcal.com/zmanim?cfg=json&latitude=${lat}&longitude=${lon}&tgt=1`);
+                            const zmanimData = await zmanimRes.json();
+                            const times = zmanimData.times;
+
+                            let nextZmanKey = null;
+                            let nextZmanTime = null;
+                            const timeEntries = Object.entries(times)
+                                .map(([key, value]) => ({ key, time: new Date(value) }))
+                                .sort((a, b) => a.time - b.time);
+
+                            for (let entry of timeEntries) {
+                                if (entry.time > now && zmanNamesHeb[entry.key]) {
+                                    nextZmanKey = zmanNamesHeb[entry.key];
+                                    nextZmanTime = entry.time.toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' });
+                                    break;
+                                }
+                            }
+
+                            const sunsetDate = new Date(times.sunset);
+                            const isNight = now > sunsetDate;
+
+                            const gy = now.getFullYear();
+                            const gm = now.getMonth() + 1;
+                            const gd = now.getDate();
+                            const afterSunset = isNight ? '&gs=1' : '';
+                            
+                            const apiRes = await fetch(`https://www.hebcal.com/converter?cfg=json&gy=${gy}&gm=${gm}&gd=${gd}${afterSunset}&g2h=1&h=1&lg=he`);
+                            const apiData = await apiRes.json();
+
+                            const hDate = new HDate(now);
+                            const currentHDate = isNight ? hDate.next() : hDate;
+                            const daysHeb = ["ראשון", "שני", "שלישי", "רביעי", "חמישי", "שישי", "שבת"];
+                            const dayName = daysHeb[currentHDate.getDay()];
+                            const prefix = isNight ? "ליל" : "יום";
+
+                            let displayEvents = "";
+                            if (apiData.events && apiData.events.length > 0) {
+                                displayEvents = apiData.events
+                                    .map(e => removeNikud(e))
+                                    .filter(e => !/[a-zA-Z]/.test(e)) 
+                                    .join(" | ");
+                            }
+
+                            setDateInfo({
+                                fullDate: `${prefix} ${dayName}, ${removeNikud(apiData.hebrew)}`,
+                                holiday: displayEvents,
+                                isNight: isNight,
+                                nextZman: nextZmanKey ? { name: nextZmanKey, time: nextZmanTime } : null,
+                                locationName: `${city}, ${region}`
+                            });
+                            setLoading(false);
+                        } catch (err) {
+                            console.error(err);
+                            setLoading(false);
+                        }
+                    };
+
+                    fetchAllData();
+                    const interval = setInterval(fetchAllData, 60000);
+                    return () => clearInterval(interval);
+                };
+
+                document.body.appendChild(script);
+            }, []);
+
+            return (
+                <div className={`min-h-screen flex flex-col items-center justify-center transition-all duration-1000 ${dateInfo.isNight ? 'bg-slate-950 text-slate-100' : 'bg-blue-50 text-slate-900'}`}>
+                    
+                    <div className={`p-8 rounded-[2.5rem] shadow-xl text-center max-w-lg w-full border-2 transition-all ${dateInfo.isNight ? 'bg-slate-900 border-slate-800' : 'bg-white border-white'}`}>
+                        
+                        {loading ? (
+                            <div className="animate-pulse space-y-6">
+                                <div className="h-16 w-16 bg-slate-200 dark:bg-slate-700 rounded-full mx-auto"></div>
+                                <div className="h-12 bg-slate-200 dark:bg-slate-700 rounded w-2/3 mx-auto"></div>
+                            </div>
+                        ) : (
+                            <>
+                                <div className="text-xs font-bold opacity-40 select-none mb-3 tracking-widest">
+                                    בס"ד
+                                </div>
+
+                                <div className="text-6xl mb-6 drop-shadow-lg">
+                                    {dateInfo.isNight ? '🌙' : '☀️'}
+                                </div>
+
+                                <h1 className="text-3xl md:text-5xl font-black mb-4 tracking-tighter leading-tight" dir="rtl">
+                                    {dateInfo.fullDate}
+                                </h1>
+
+                                {dateInfo.holiday && (
+                                    <div className="mt-1 mb-6 inline-block px-5 py-2 rounded-xl bg-amber-500/10 text-amber-600 dark:text-amber-400 text-lg font-bold border border-amber-500/20">
+                                        {dateInfo.holiday}
+                                    </div>
+                                )}
+
+                                {dateInfo.nextZman && (
+                                    <div className={`mt-2 p-4 rounded-[1.5rem] border-2 flex flex-col items-center justify-center transition-all ${dateInfo.isNight ? 'bg-slate-800/50 border-blue-900/30' : 'bg-blue-50/50 border-blue-100'}`}>
+                                        <span className="text-[10px] font-bold opacity-60 mb-1">הזמן הקרוב (בעל התניא):</span>
+                                        <div className="flex items-baseline gap-2">
+                                            <span className="text-xl font-black text-blue-600 dark:text-blue-400">{dateInfo.nextZman.name}</span>
+                                            <span className="text-2xl font-light tracking-wider">{dateInfo.nextZman.time}</span>
+                                        </div>
+                                        <div className="mt-2 text-[9px] uppercase tracking-widest opacity-40 font-bold">
+                                            חישוב עבור: {dateInfo.locationName}
+                                        </div>
+                                    </div>
+                                )}
+
+                                <div className="mt-10 pt-6 border-t border-slate-100 dark:border-slate-800 opacity-40 text-[10px] font-bold flex flex-wrap justify-center gap-4">
+                                    <span>© מאיר דרוק</span>
+                                </div>
+                            </>
+                        )}
+                    </div>
+                </div>
+            );
+        };
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>
