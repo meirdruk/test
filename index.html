@@ -3,11 +3,11 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Test Page</title>
+    <title>Inyan</title>
     <!-- Tailwind CSS for styling -->
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- React and Babel to run JSX in the browser -->
-    <script src="https://unpkg.com/react@18/umad/react.production.min.js"></script>
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
     <style>
@@ -30,6 +30,7 @@
                 locationName: ""
             });
             const [loading, setLoading] = useState(true);
+            const [error, setError] = useState(null);
 
             const removeNikud = (text) => {
                 if (!text) return "";
@@ -56,36 +57,41 @@
                 script.src = "https://cdn.jsdelivr.net/npm/@hebcal/core@latest/dist/bundle.min.js";
                 script.async = true;
                 
-                script.onload = async () => {
+                script.onload = () => {
                     const fetchAllData = async () => {
                         try {
                             const hb = window.hebcal || window.hbcore;
-                            if (!hb) return;
+                            if (!hb) {
+                                throw new Error("Hebcal library failed to load");
+                            }
 
-                            // Default location
+                            // Default location (New York)
                             let lat = 40.7128, lon = -74.0060, city = "New York", region = "NY";
                             try {
                                 const ipRes = await fetch('https://ipapi.co/json/');
-                                const ipData = await ipRes.json();
-                                if (ipData.latitude) {
-                                    lat = ipData.latitude;
-                                    lon = ipData.longitude;
-                                    city = ipData.city;
-                                    region = ipData.region_code || ipData.region;
+                                if (ipRes.ok) {
+                                    const ipData = await ipRes.json();
+                                    if (ipData.latitude) {
+                                        lat = ipData.latitude;
+                                        lon = ipData.longitude;
+                                        city = ipData.city;
+                                        region = ipData.region_code || ipData.region;
+                                    }
                                 }
-                            } catch (e) { console.warn("IP Location failed"); }
+                            } catch (e) { 
+                                console.warn("IP Location fetch failed, using default."); 
+                            }
 
-                            const { HDate, Location } = hb;
                             const now = new Date();
                             
                             // Fetch Zmanim for the specific location
                             const zmanimRes = await fetch(`https://www.hebcal.com/zmanim?cfg=json&latitude=${lat}&longitude=${lon}&tgt=1`);
+                            if (!zmanimRes.ok) throw new Error("Zmanim API error");
                             const zmanimData = await zmanimRes.json();
                             const times = zmanimData.times;
 
-                            // CRITICAL FIX: Direct night detection based on actual sunset timestamp
+                            // Direct night detection based on actual sunset timestamp
                             const sunsetTime = new Date(times.sunset);
-                            const tzeitTime = new Date(times.tzeit);
                             const isNight = now >= sunsetTime;
 
                             // Determine next Zman
@@ -107,14 +113,14 @@
                             const gy = now.getFullYear();
                             const gm = now.getMonth() + 1;
                             const gd = now.getDate();
-                            // gs=1 flag tells Hebcal it's after sunset
                             const afterSunsetParam = isNight ? '&gs=1' : '';
                             
                             const apiRes = await fetch(`https://www.hebcal.com/converter?cfg=json&gy=${gy}&gm=${gm}&gd=${gd}${afterSunsetParam}&g2h=1&h=1&lg=he`);
+                            if (!apiRes.ok) throw new Error("Hebrew Converter API error");
                             const apiData = await apiRes.json();
 
                             // Use the library to get the correct day of the week name
-                            const hDateObj = new HDate(now);
+                            const hDateObj = new hb.HDate(now);
                             const displayHDate = isNight ? hDateObj.next() : hDateObj;
                             const daysHeb = ["ראשון", "שני", "שלישי", "רביעי", "חמישי", "שישי", "שבת"];
                             const dayName = daysHeb[displayHDate.getDay()];
@@ -135,21 +141,38 @@
                                 nextZman: nextZmanKey ? { name: nextZmanKey, time: nextZmanTimeText } : null,
                                 locationName: `${city}, ${region}`
                             });
+                            setError(null);
                             setLoading(false);
                         } catch (err) {
                             console.error("Data fetch error:", err);
+                            setError("אירעה שגיאה בטעינת הנתונים. אנא נסה שנית.");
                             setLoading(false);
                         }
                     };
 
                     fetchAllData();
-                    // Refresh every minute to check if sunset has passed
                     const interval = setInterval(fetchAllData, 60000);
                     return () => clearInterval(interval);
                 };
 
+                script.onerror = () => {
+                    setError("נכשל בטעינת ספריות חיצוניות.");
+                    setLoading(false);
+                };
+
                 document.body.appendChild(script);
             }, []);
+
+            if (error) {
+                return (
+                    <div className="min-h-screen flex items-center justify-center bg-red-50 text-red-900 p-4 text-center">
+                        <div className="max-w-md bg-white p-8 rounded-[2rem] shadow-lg border border-red-100">
+                            <p className="text-xl font-semibold mb-2">{error}</p>
+                            <button onClick={() => window.location.reload()} className="mt-4 px-6 py-2 bg-red-600 text-white rounded-lg">נסה שנית</button>
+                        </div>
+                    </div>
+                );
+            }
 
             return (
                 <div className={`min-h-screen flex flex-col items-center justify-center transition-all duration-1000 ${dateInfo.isNight ? 'bg-slate-950 text-slate-200' : 'bg-blue-50 text-slate-800'}`}>
@@ -157,9 +180,10 @@
                     <div className={`p-8 rounded-[2.5rem] shadow-xl text-center max-w-lg w-full border transition-all ${dateInfo.isNight ? 'bg-slate-900 border-slate-800' : 'bg-white border-blue-50'}`}>
                         
                         {loading ? (
-                            <div className="animate-pulse space-y-6">
-                                <div className="h-16 w-16 bg-slate-200 dark:bg-slate-700 rounded-full mx-auto"></div>
-                                <div className="h-12 bg-slate-200 dark:bg-slate-700 rounded w-2/3 mx-auto"></div>
+                            <div className="animate-pulse space-y-6 flex flex-col items-center">
+                                <div className="h-4 w-12 bg-slate-200 dark:bg-slate-700 rounded mb-4"></div>
+                                <div className="h-16 w-16 bg-slate-200 dark:bg-slate-700 rounded-full"></div>
+                                <div className="h-10 bg-slate-200 dark:bg-slate-700 rounded w-2/3"></div>
                             </div>
                         ) : (
                             <>
